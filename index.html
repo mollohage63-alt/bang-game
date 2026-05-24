@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fantasy Heroes Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+
+<!-- Firebase compat (전역 방식 - onclick에서 바로 사용 가능) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+:root {
+  --gold:#c9a84c;--gold-light:#f0d080;--gold-dark:#8a6a1a;
+  --crimson:#8b1a1a;--crimson-light:#c0392b;
+  --deep-bg:#0d0a08;--panel-bg:#1a1108;
+  --text-main:#e8d5a0;--text-dim:#8a7a50;--border:#3d2e0a;
+  --shadow-gold:rgba(201,168,76,0.3);
+  --blue-light:#4488dd;--green-light:#2ecc71;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--deep-bg);color:var(--text-main);font-family:'Crimson Text',serif;min-height:100vh;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(139,26,26,.08) 0%,transparent 50%),
+  radial-gradient(ellipse at 80% 80%,rgba(34,85,170,.06) 0%,transparent 50%);}
+.screen{display:none;}.screen.active{display:flex;flex-direction:column;}
+
+/* LOBBY */
+#lobby{align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.title{font-family:'Cinzel',serif;font-size:clamp(2rem,6vw,4rem);font-weight:900;color:var(--gold);text-shadow:0 0 30px var(--shadow-gold);text-align:center;}
+.title-sub{font-family:'Cinzel',serif;font-size:.85rem;color:var(--text-dim);letter-spacing:.3em;text-align:center;margin:8px 0 28px;}
+.divider{width:200px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:0 auto 28px;}
+.panel{background:var(--panel-bg);border:1px solid var(--border);border-radius:6px;padding:28px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.6);}
+.lbl{font-family:'Cinzel',serif;font-size:.68rem;color:var(--text-dim);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;}
+.inp{width:100%;padding:11px 14px;background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:3px;color:var(--text-main);font-family:'Crimson Text',serif;font-size:1rem;outline:none;margin-bottom:14px;transition:border-color .2s;}
+.inp:focus{border-color:var(--gold-dark);}
+.inp::placeholder{color:var(--text-dim);}
+.btn{width:100%;padding:13px;border-radius:3px;font-family:'Cinzel',serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;cursor:pointer;transition:all .2s;border:1px solid;margin-bottom:8px;}
+.btn-gold{background:linear-gradient(135deg,#8a6a1a,#c9a84c,#8a6a1a);border-color:var(--gold-dark);color:#0d0a08;}
+.btn-gold:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.btn-dim{background:transparent;border-color:var(--border);color:var(--text-dim);}
+.btn-dim:hover{border-color:var(--gold-dark);color:var(--gold);background:rgba(201,168,76,.05);}
+.or{text-align:center;color:var(--text-dim);font-size:.8rem;margin:10px 0;}
+
+/* WAITING */
+#waiting{align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.code-big{font-family:'Cinzel',serif;font-size:3.5rem;font-weight:900;color:var(--gold);text-shadow:0 0 20px var(--shadow-gold);letter-spacing:.3em;text-align:center;margin:12px 0;}
+.pw-list{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
+.pw-item{padding:9px 14px;background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:3px;display:flex;align-items:center;gap:10px;font-family:'Cinzel',serif;font-size:.82rem;}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green-light);}
+.dot.empty{background:var(--border);}
+.status-txt{color:var(--text-dim);font-size:.82rem;font-style:italic;text-align:center;margin:6px 0;}
+
+/* ROLE REVEAL */
+#role-reveal{align-items:center;justify-content:center;min-height:100vh;}
+.role-box{text-align:center;max-width:340px;width:90%;padding:20px;}
+.role-card{width:200px;height:280px;margin:0 auto 20px;perspective:800px;cursor:pointer;}
+.role-inner{width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s;position:relative;}
+.role-inner.flipped{transform:rotateY(180deg);}
+.rface{position:absolute;inset:0;backface-visibility:hidden;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;border:2px solid var(--border);}
+.rback{background:linear-gradient(135deg,#1a0530,#2d0a4a);}
+.rfront{transform:rotateY(180deg);}
+.rfront.king{background:linear-gradient(135deg,#2a1a00,#4a3000);border-color:var(--gold);}
+.rfront.shadow{background:linear-gradient(135deg,#0a0a1a,#1a0a2a);border-color:#8a44bb;}
+.rfront.hero{background:linear-gradient(135deg,#0a1a2a,#0a2a4a);border-color:#4488dd;}
+.rfront.trickster{background:linear-gradient(135deg,#1a1a00,#2a2a00);border-color:#aaaa22;}
+.r-ico{font-size:3.5rem;margin-bottom:8px;}
+.r-name{font-family:'Cinzel',serif;font-size:1.3rem;font-weight:700;margin-bottom:6px;}
+.r-desc{font-size:.82rem;color:var(--text-dim);line-height:1.5;}
+.r-obj{margin-top:8px;font-size:.78rem;font-style:italic;}
+.obj-king{color:var(--gold);}.obj-shadow{color:#bb66ff;}.obj-hero{color:#66aaff;}.obj-trickster{color:#cccc44;}
+.flip-hint{color:var(--text-dim);font-size:.82rem;font-style:italic;animation:pulse 2s infinite;margin-bottom:14px;}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.reveal-btn{padding:11px 28px;background:transparent;border:1px solid var(--gold-dark);border-radius:3px;color:var(--gold);font-family:'Cinzel',serif;font-size:.85rem;cursor:pointer;display:none;transition:all .2s;}
+.reveal-btn:hover{background:rgba(201,168,76,.1);}
+.reveal-btn.show{display:inline-block;}
+
+/* GAME */
+#game{min-height:100vh;padding:8px;gap:7px;}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--panel-bg);border:1px solid var(--border);border-radius:4px;flex-shrink:0;}
+.g-logo{font-family:'Cinzel',serif;font-size:.9rem;color:var(--gold);}
+.turn-badge{font-family:'Cinzel',serif;font-size:.72rem;color:var(--text-dim);}
+.turn-badge span{color:var(--gold-light);}
+.players-row{display:flex;gap:7px;flex-shrink:0;overflow-x:auto;}
+.pc{flex:1;min-width:120px;background:var(--panel-bg);border:1px solid var(--border);border-radius:4px;padding:9px;position:relative;transition:all .3s;}
+.pc.mine{border-color:rgba(201,168,76,.4);}
+.pc.active{border-color:var(--gold);box-shadow:0 0 12px var(--shadow-gold);}
+.pc.dead{opacity:.35;}
+.pc.targeted{border-color:var(--crimson-light);animation:shake .3s;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.pn{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold-light);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pcls{font-size:.62rem;color:var(--text-dim);margin-bottom:5px;}
+.hpr{display:flex;justify-content:space-between;font-size:.62rem;color:var(--text-dim);margin-bottom:2px;}
+.hpb{height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;margin-bottom:5px;}
+.hpf{height:100%;border-radius:3px;transition:width .4s;}
+.hp-hi{background:linear-gradient(90deg,#1a7a2a,var(--green-light));}
+.hp-md{background:linear-gradient(90deg,#7a5a00,#f0a020);}
+.hp-lo{background:linear-gradient(90deg,var(--crimson),var(--crimson-light));}
+.pst{display:flex;gap:5px;font-size:.62rem;color:var(--text-dim);}
+.eq-row{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
+.eq-tag{font-size:.52rem;padding:1px 4px;background:rgba(26,90,42,.4);border:1px solid #1a5a2a;border-radius:2px;color:#6de89a;}
+.st-tag{font-size:.52rem;padding:1px 4px;background:rgba(139,26,26,.4);border:1px solid #5a1a1a;border-radius:2px;color:#e06060;}
+.dead-x{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2rem;background:rgba(0,0,0,.5);border-radius:4px;}
+.main-area{display:flex;gap:7px;flex:1;min-height:0;}
+.hand-panel{flex:1;background:var(--panel-bg);border:1px solid var(--border);border-radius:4px;padding:10px;display:flex;flex-direction:column;min-height:0;}
+.ptitle{font-family:'Cinzel',serif;font-size:.62rem;color:var(--text-dim);letter-spacing:.2em;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+.ptitle::after{content:'';flex:1;height:1px;background:var(--border);}
+.cards-wrap{display:flex;flex-wrap:wrap;gap:6px;overflow-y:auto;flex:1;}
+.gc{width:72px;min-height:100px;border-radius:5px;border:1px solid transparent;padding:6px 4px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
+.gc:hover{transform:translateY(-4px) scale(1.04);z-index:10;}
+.gc.sel{transform:translateY(-8px);z-index:20;}
+.gc.dis{opacity:.3;cursor:not-allowed;transform:none!important;}
+.gc.attack{background:linear-gradient(160deg,#2a0808,#1a0505);border-color:#5a1a1a;}
+.gc.attack.sel{border-color:var(--crimson-light);box-shadow:0 0 10px rgba(192,57,43,.5);}
+.gc.magic{background:linear-gradient(160deg,#080a2a,#050820);border-color:#1a1a5a;}
+.gc.magic.sel{border-color:var(--blue-light);box-shadow:0 0 10px rgba(68,136,221,.5);}
+.gc.equipment{background:linear-gradient(160deg,#0a1a08,#081208);border-color:#1a3a1a;}
+.gc.equipment.sel{border-color:var(--green-light);box-shadow:0 0 10px rgba(46,204,113,.4);}
+.gc.defense{background:linear-gradient(160deg,#1a1400,#120f00);border-color:#3a2a00;}
+.gc.defense.sel{border-color:var(--gold);box-shadow:0 0 10px var(--shadow-gold);}
+.gc.special{background:linear-gradient(160deg,#1a0820,#100515);border-color:#3a1a4a;}
+.gc.special.sel{border-color:#bb66ff;box-shadow:0 0 10px rgba(187,102,255,.4);}
+.ci{font-size:1.4rem;margin-bottom:2px;}
+.cn{font-family:'Cinzel',serif;font-size:.46rem;text-align:center;letter-spacing:.04em;color:var(--text-main);line-height:1.3;}
+.ct{font-size:.4rem;letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+.attack .ct{color:#e06060}.magic .ct{color:var(--blue-light)}.equipment .ct{color:var(--green-light)}.defense .ct{color:var(--gold)}.special .ct{color:#bb66ff}
+.cd{font-size:.38rem;text-align:center;color:var(--text-dim);margin-top:auto;line-height:1.4;padding-top:2px;}
+.action-panel{width:190px;flex-shrink:0;background:var(--panel-bg);border:1px solid var(--border);border-radius:4px;padding:10px;display:flex;flex-direction:column;gap:7px;}
+.phase-box{text-align:center;padding:6px;background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:3px;}
+.ph-lbl{font-size:.55rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;}
+.ph-val{font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);}
+.sel-info{padding:7px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:3px;min-height:68px;display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;}
+.si-ico{font-size:1.5rem;}
+.si-nm{font-family:'Cinzel',serif;font-size:.68rem;color:var(--gold-light);text-align:center;}
+.si-dc{font-size:.62rem;color:var(--text-dim);text-align:center;line-height:1.4;}
+.tgt-sec{display:flex;flex-direction:column;gap:4px;}
+.tgt-lbl{font-size:.58rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;font-family:'Cinzel',serif;}
+.tgt-btn{padding:6px 7px;background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:3px;color:var(--text-main);font-family:'Crimson Text',serif;font-size:.78rem;cursor:pointer;transition:all .2s;text-align:left;width:100%;}
+.tgt-btn:hover{background:rgba(201,168,76,.12);border-color:var(--gold-dark);color:var(--gold);}
+.tgt-btn.tsel{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.1);}
+.act-btns{display:flex;flex-direction:column;gap:4px;margin-top:auto;}
+.ab{padding:8px;border-radius:3px;font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.07em;cursor:pointer;transition:all .2s;border:1px solid;width:100%;}
+.ab-p{background:linear-gradient(135deg,#5a3a00,#8a6a1a);border-color:var(--gold-dark);color:var(--gold-light);}
+.ab-p:hover{filter:brightness(1.15);}
+.ab-p:disabled{opacity:.3;cursor:not-allowed;filter:none;}
+.ab-s{background:transparent;border-color:var(--border);color:var(--text-dim);}
+.ab-s:hover{border-color:var(--gold-dark);color:var(--gold);background:rgba(201,168,76,.05);}
+.ab-s:disabled{opacity:.3;cursor:not-allowed;}
+.log-panel{background:var(--panel-bg);border:1px solid var(--border);border-radius:4px;padding:7px 11px;max-height:75px;overflow-y:auto;flex-shrink:0;}
+.log-e{font-size:.7rem;color:var(--text-dim);padding:1px 0;border-bottom:1px solid rgba(255,255,255,.02);line-height:1.5;}
+.la{color:var(--gold-light);}.lc{color:#66aaff;}.lt{color:#e06060;}
+
+/* VICTORY */
+#victory{align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at center,#1a0a00 0%,var(--deep-bg) 60%);}
+.vic-box{text-align:center;max-width:460px;width:90%;}
+.vt{font-family:'Cinzel',serif;font-size:clamp(1.8rem,5vw,3rem);font-weight:900;color:var(--gold);text-shadow:0 0 40px var(--shadow-gold);margin-bottom:6px;}
+.vs{color:var(--text-dim);font-style:italic;margin-bottom:24px;}
+.wlist{display:flex;flex-direction:column;gap:7px;margin-bottom:24px;}
+.wi{padding:11px 16px;background:rgba(201,168,76,.08);border:1px solid var(--gold-dark);border-radius:4px;display:flex;align-items:center;gap:11px;}
+.w-ico{font-size:1.7rem;}
+.wn{font-family:'Cinzel',serif;color:var(--gold-light);}
+.wr{font-size:.76rem;color:var(--text-dim);}
+
+/* MODAL */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:100;}
+.modal-ov.on{display:flex;}
+.mbox{background:var(--panel-bg);border:1px solid var(--border);border-radius:6px;padding:22px;max-width:300px;width:90%;text-align:center;}
+.m-ico{font-size:2.2rem;margin-bottom:8px;}
+.m-ttl{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);margin-bottom:5px;}
+.m-dsc{font-size:.86rem;color:var(--text-dim);line-height:1.5;margin-bottom:16px;}
+.m-cls{padding:8px 22px;background:transparent;border:1px solid var(--gold-dark);border-radius:3px;color:var(--gold);font-family:'Cinzel',serif;font-size:.8rem;cursor:pointer;}
+
+/* WAIT */
+.wait-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:14px;}
+.wait-ov.on{display:flex;}
+.wspin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.wmsg{font-family:'Cinzel',serif;color:var(--gold);font-size:.85rem;letter-spacing:.1em;}
+
+/* GUIDE */
+.guide{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:14px;margin-top:16px;}
+.guide-title{font-family:'Cinzel',serif;font-size:.72rem;color:var(--gold);letter-spacing:.15em;margin-bottom:10px;text-align:center;}
+.guide-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;font-size:.78rem;color:var(--text-dim);line-height:1.4;}
+.guide-ico{font-size:1rem;flex-shrink:0;width:20px;text-align:center;}
+.role-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;}
+.rtag{font-size:.65rem;padding:3px 8px;border-radius:3px;font-family:'Cinzel',serif;}
+.rtag-king{background:rgba(201,168,76,.15);border:1px solid var(--gold-dark);color:var(--gold);}
+.rtag-shadow{background:rgba(138,68,187,.15);border:1px solid #5a2a8a;color:#bb66ff;}
+.rtag-hero{background:rgba(68,136,221,.15);border:1px solid #2255aa;color:#66aaff;}
+.rtag-trick{background:rgba(170,170,34,.15);border:1px solid #6a6a00;color:#cccc44;}
+/* CARD POPUP */
+.card-popup{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;z-index:150;}
+.card-popup.on{display:flex;}
+.cp-box{background:var(--panel-bg);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:280px;width:90%;text-align:center;}
+.cp-ico{font-size:3rem;margin-bottom:8px;}
+.cp-name{font-family:'Cinzel',serif;font-size:1.1rem;color:var(--gold);margin-bottom:4px;}
+.cp-type{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.cp-desc{font-size:.9rem;color:var(--text-dim);line-height:1.5;margin-bottom:16px;}
+.cp-close{padding:8px 22px;background:transparent;border:1px solid var(--gold-dark);border-radius:3px;color:var(--gold);font-family:'Cinzel',serif;font-size:.8rem;cursor:pointer;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby" class="screen active">
+  <div class="title">⚔ Fantasy Heroes</div>
+  <div class="title-sub">Online Multiplayer</div>
+  <div class="divider"></div>
+  <div class="panel">
+    <div class="lbl">내 이름</div>
+    <input class="inp" id="my-name" placeholder="이름 입력" maxlength="10">
+    <button class="btn btn-gold" onclick="createRoom()">🏰 방 만들기</button>
+    <div class="or">— 또는 —</div>
+    <div class="lbl">방 코드</div>
+    <input class="inp" id="room-code-inp" placeholder="4자리 코드" maxlength="4" style="text-transform:uppercase;letter-spacing:.2em;text-align:center">
+    <button class="btn btn-dim" onclick="joinRoom()">🚪 참가하기</button>
+
+    <div class="guide">
+      <div class="guide-title">📖 게임 방법</div>
+      <div class="guide-row"><div class="guide-ico">👥</div><div>2~4명이 각자 폰으로 접속해 방 코드로 입장합니다.</div></div>
+      <div class="guide-row"><div class="guide-ico">🃏</div><div>매 턴 카드를 뽑고 사용해 상대를 공격하거나 자신을 강화하세요.</div></div>
+      <div class="guide-row"><div class="guide-ico">🎴</div><div>카드를 <strong style="color:var(--text-main)">길게 누르면</strong> 상세 설명을 볼 수 있어요.</div></div>
+      <div class="guide-row"><div class="guide-ico">🏆</div><div>역할에 따라 승리 조건이 달라요. 역할은 비밀이에요!</div></div>
+      <div class="role-tags">
+        <span class="rtag rtag-king">👑 왕 — 섀도우 전멸</span>
+        <span class="rtag rtag-shadow">🌑 섀도우 — 왕 처치</span>
+        <span class="rtag rtag-hero">🛡 영웅 — 왕 보좌</span>
+        <span class="rtag rtag-trick">🎭 트릭스터 — 최후 생존</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WAITING -->
+<div id="waiting" class="screen">
+  <div class="panel" style="margin:auto;text-align:center;max-width:420px">
+    <div class="lbl">방 코드를 친구에게 알려주세요</div>
+    <div class="code-big" id="disp-code">----</div>
+    <button class="btn btn-dim" onclick="copyCode()" style="margin-bottom:16px">📋 코드 복사</button>
+    <div class="lbl">참가 현황</div>
+    <div class="pw-list" id="pw-list"></div>
+    <div class="status-txt" id="wait-status">대기 중...</div>
+    <button class="btn btn-gold" id="start-btn" style="display:none;margin-top:12px" onclick="hostStart()">⚔ 게임 시작</button>
+  </div>
+</div>
+
+<!-- ROLE REVEAL -->
+<div id="role-reveal" class="screen">
+  <div class="role-box">
+    <div class="lbl" id="role-lbl" style="text-align:center;margin-bottom:16px"></div>
+    <div class="flip-hint">카드를 클릭해 역할 확인</div>
+    <div class="role-card" onclick="flipRole()">
+      <div class="role-inner" id="role-inner">
+        <div class="rface rback"><div style="font-size:4rem">✦</div></div>
+        <div class="rface rfront" id="role-front"></div>
+      </div>
+    </div>
+    <button class="reveal-btn" id="reveal-btn" onclick="confirmRole()">확인 완료 →</button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="top-bar">
+    <div class="g-logo">⚔ Fantasy Heroes</div>
+    <div class="turn-badge">R<span id="g-round">1</span> · <span id="g-turn">...</span>의 턴</div>
+    <div id="g-room" style="font-size:.65rem;color:var(--text-dim)"></div>
+  </div>
+  <div class="players-row" id="g-players"></div>
+  <div class="main-area">
+    <div class="hand-panel">
+      <div class="ptitle">🃏 <span id="g-hand-lbl">내 핸드</span></div>
+      <div class="cards-wrap" id="g-cards"></div>
+    </div>
+    <div class="action-panel">
+      <div class="phase-box">
+        <div class="ph-lbl">단계</div>
+        <div class="ph-val" id="g-phase">대기</div>
+      </div>
+      <div class="sel-info" id="g-sel">
+        <div class="si-dc" style="font-style:italic">카드 선택</div>
+      </div>
+      <div class="tgt-sec">
+        <div class="tgt-lbl">대상</div>
+        <div id="g-tgts"></div>
+      </div>
+      <div class="act-btns">
+        <button class="ab ab-p" id="use-btn" onclick="useCard()" disabled>카드 사용</button>
+        <button class="ab ab-s" id="draw-btn" onclick="drawCard()" disabled>🎴 카드 뽑기</button>
+        <button class="ab ab-s" id="end-btn" onclick="endTurn()" disabled>턴 종료 →</button>
+      </div>
+    </div>
+  </div>
+  <div class="log-panel" id="g-log"></div>
+</div>
+
+<!-- VICTORY -->
+<div id="victory" class="screen">
+  <div class="vic-box">
+    <div class="vt" id="vic-t">⚔ 전투 종료</div>
+    <div class="vs" id="vic-s"></div>
+    <div class="wlist" id="vic-w"></div>
+    <button class="btn btn-gold" onclick="backLobby()" style="max-width:200px;margin:0 auto">🏠 로비로</button>
+  </div>
+</div>
+
+<!-- CARD POPUP -->
+<div class="card-popup" id="card-popup">
+  <div class="cp-box">
+    <div class="cp-ico" id="cp-ico"></div>
+    <div class="cp-name" id="cp-name"></div>
+    <div class="cp-type" id="cp-type"></div>
+    <div class="cp-desc" id="cp-desc"></div>
+    <button class="cp-close" onclick="document.getElementById('card-popup').classList.remove('on')">닫기</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov" id="modal">
+  <div class="mbox">
+    <div class="m-ico" id="m-ico"></div>
+    <div class="m-ttl" id="m-ttl"></div>
+    <div class="m-dsc" id="m-dsc"></div>
+    <button class="m-cls" onclick="closeModal()">확인</button>
+  </div>
+</div>
+
+<!-- WAIT -->
+<div class="wait-ov" id="wait-ov">
+  <div class="wspin"></div>
+  <div class="wmsg" id="wmsg">잠시만요...</div>
+</div>
+
+<script>
+// ── Firebase Init ──
+const firebaseConfig = {
+  apiKey: "AIzaSyBPN6wG0B2XB7iOl1Aljt7YlJRdxskVJN8",
+  authDomain: "fantasy-game-4c807.firebaseapp.com",
+  databaseURL: "https://fantasy-game-4c807-default-rtdb.firebaseio.com",
+  projectId: "fantasy-game-4c807",
+  storageBucket: "fantasy-game-4c807.firebasestorage.app",
+  messagingSenderId: "735506913114",
+  appId: "1:735506913114:web:35d4f8821a98d92bedc563"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ── DATA ──
+const ROLES = [
+  {id:'king',name:'왕',icon:'👑',cls:'king',team:'light',known:true,desc:'모든 섀도우를 처치하라.',obj:'승리: 섀도우 전멸',objCls:'obj-king'},
+  {id:'shadow',name:'섀도우',icon:'🌑',cls:'shadow',team:'dark',known:false,desc:'왕을 처치하라.',obj:'승리: 왕 처치',objCls:'obj-shadow'},
+  {id:'hero',name:'영웅',icon:'🛡',cls:'hero',team:'light',known:false,desc:'왕을 보좌하라.',obj:'승리: 섀도우 전멸',objCls:'obj-hero'},
+  {id:'trickster',name:'트릭스터',icon:'🎭',cls:'trickster',team:'neutral',known:false,desc:'혼자 살아남아라.',obj:'승리: 최후 생존',objCls:'obj-trickster'},
+];
+const CLASSES = [
+  {name:'전사',icon:'⚔',hp:5,atk:2,def:1},
+  {name:'마법사',icon:'🔮',hp:4,atk:3,def:0},
+  {name:'도적',icon:'🗡',hp:4,atk:2,def:1},
+  {name:'성직자',icon:'✨',hp:4,atk:1,def:1},
+  {name:'궁수',icon:'🏹',hp:4,atk:2,def:0},
+  {name:'기사',icon:'🛡',hp:6,atk:1,def:2},
+];
+const CARDS = [
+  {id:'a1',name:'검격',icon:'⚔',type:'attack',desc:'1피해',eff:'dmg1',n:6},
+  {id:'a2',name:'강타',icon:'💥',type:'attack',desc:'2피해',eff:'dmg2',n:3},
+  {id:'a3',name:'광역폭풍',icon:'🌪',type:'attack',desc:'모두 1피해',eff:'aoe',n:2},
+  {id:'d1',name:'방패막이',icon:'🛡',type:'defense',desc:'피해 1 차단',eff:'blk1',n:5},
+  {id:'d2',name:'완전방어',icon:'🔒',type:'defense',desc:'완전무효',eff:'blkA',n:2},
+  {id:'m1',name:'화염구',icon:'🔥',type:'magic',desc:'마법 2피해',eff:'mag2',n:3},
+  {id:'m2',name:'번개',icon:'⚡',type:'magic',desc:'3피해+마비',eff:'ltng',n:2},
+  {id:'m3',name:'치유의빛',icon:'💚',type:'magic',desc:'HP+2',eff:'heal',n:3},
+  {id:'m4',name:'신성결계',icon:'✨',type:'magic',desc:'무적 1턴',eff:'invn',n:2},
+  {id:'m5',name:'저주',icon:'💀',type:'magic',desc:'공격-1',eff:'curs',n:2},
+  {id:'e1',name:'강철검',icon:'🗡',type:'equipment',desc:'공격+1',eff:'eAtk',n:2},
+  {id:'e2',name:'용의갑옷',icon:'🥋',type:'equipment',desc:'방어+1',eff:'eDef',n:2},
+  {id:'e3',name:'이속부츠',icon:'👟',type:'equipment',desc:'턴마다+1',eff:'eDrw',n:2},
+  {id:'e4',name:'독단검',icon:'🔪',type:'equipment',desc:'독 부여',eff:'ePsn',n:2},
+  {id:'s1',name:'카드강탈',icon:'🎴',type:'special',desc:'카드 탈취',eff:'stl',n:2},
+  {id:'s2',name:'역할간파',icon:'👁',type:'special',desc:'역할 확인',eff:'peek',n:2},
+];
+
+// ── STATE ──
+let S = {myId:'',myName:'',roomCode:'',isHost:false,selCard:null,selTarget:null,gameState:null,unsub:null};
+
+// ── UTILS ──
+function uid(){return Math.random().toString(36).substr(2,9);}
+function code(){return Math.random().toString(36).substr(2,4).toUpperCase();}
+function shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function showWait(m){document.getElementById('wmsg').textContent=m;document.getElementById('wait-ov').classList.add('on');}
+function hideWait(){document.getElementById('wait-ov').classList.remove('on');}
+function showModal(ico,ttl,dsc){document.getElementById('m-ico').textContent=ico;document.getElementById('m-ttl').textContent=ttl;document.getElementById('m-dsc').textContent=dsc;document.getElementById('modal').classList.add('on');}
+function closeModal(){document.getElementById('modal').classList.remove('on');}
+
+// ── LOBBY ──
+function createRoom(){
+  const name=document.getElementById('my-name').value.trim();
+  if(!name){showModal('⚠️','이름 필요','이름을 입력하세요!');return;}
+  S.myId=uid();S.myName=name;S.isHost=true;S.roomCode=code();
+  showWait('방 생성 중...');
+  db.ref('rooms/'+S.roomCode).set({
+    host:S.myId,status:'waiting',
+    players:{[S.myId]:{name,id:S.myId,index:0}}
+  }).then(()=>{hideWait();showWaiting();}).catch(e=>{hideWait();showModal('❌','오류',e.message);});
+}
+
+function joinRoom(){
+  const name=document.getElementById('my-name').value.trim();
+  const rc=document.getElementById('room-code-inp').value.trim().toUpperCase();
+  if(!name){showModal('⚠️','이름 필요','이름을 입력하세요!');return;}
+  if(!rc){showModal('⚠️','코드 필요','방 코드를 입력하세요!');return;}
+  showWait('방 입장 중...');
+  db.ref('rooms/'+rc).get().then(snap=>{
+    if(!snap.exists()){hideWait();showModal('❌','방 없음','방을 찾을 수 없어요.');return;}
+    const room=snap.val();
+    if(room.status!=='waiting'){hideWait();showModal('❌','이미 시작','게임이 시작됐어요.');return;}
+    const players=Object.values(room.players||{});
+    if(players.length>=4){hideWait();showModal('❌','방 가득','최대 4명이에요.');return;}
+    S.myId=uid();S.myName=name;S.isHost=false;S.roomCode=rc;
+    return db.ref('rooms/'+rc+'/players/'+S.myId).set({name,id:S.myId,index:players.length});
+  }).then(()=>{if(S.roomCode){hideWait();showWaiting();}}).catch(e=>{hideWait();showModal('❌','오류',e.message);});
+}
+
+// ── WAITING ──
+function showWaiting(){
+  document.getElementById('disp-code').textContent=S.roomCode;
+  document.getElementById('g-room').textContent='#'+S.roomCode;
+  show('waiting');
+  db.ref('rooms/'+S.roomCode).on('value',snap=>{
+    if(!snap.exists())return;
+    const room=snap.val();
+    renderWaiting(room);
+    if(room.status==='started'&&room.gameState) startRoleReveal(room.gameState);
+  });
+}
+
+function renderWaiting(room){
+  const players=Object.values(room.players||{}).sort((a,b)=>a.index-b.index);
+  const w=document.getElementById('pw-list');
+  w.innerHTML='';
+  [0,1,2,3].forEach(i=>{
+    const p=players[i];
+    w.innerHTML+=`<div class="pw-item"><div class="dot ${p?'':'empty'}"></div><span>${p?p.name:'대기 중...'}</span>${p&&p.id===S.myId?'<span style="font-size:.6rem;color:var(--text-dim);margin-left:auto">(나)</span>':''}</div>`;
+  });
+  document.getElementById('wait-status').textContent=`${players.length}명 참가 (2~4명 필요)`;
+  document.getElementById('start-btn').style.display=(S.isHost&&players.length>=2)?'block':'none';
+}
+
+function copyCode(){
+  navigator.clipboard.writeText(S.roomCode).then(()=>showModal('📋','복사됨','방 코드 "'+S.roomCode+'" 복사!'));
+}
+
+function hostStart(){
+  showWait('게임 시작 중...');
+  db.ref('rooms/'+S.roomCode+'/players').get().then(snap=>{
+    const players=Object.values(snap.val()).sort((a,b)=>a.index-b.index);
+    const gs=buildGS(players);
+    return db.ref('rooms/'+S.roomCode).update({status:'started',gameState:gs});
+  }).then(()=>hideWait()).catch(e=>{hideWait();showModal('❌','오류',e.message);});
+}
+
+// ── BUILD GAME STATE ──
+function buildDeck(){const d=[];CARDS.forEach(c=>{for(let i=0;i<c.n;i++)d.push({...c});});return shuf(d);}
+function rolePool(n){if(n===2)return[ROLES[0],ROLES[1]];if(n===3)return[ROLES[0],ROLES[1],ROLES[3]];return[ROLES[0],ROLES[1],ROLES[2],ROLES[3]];}
+
+function buildGS(playerList){
+  const roles=shuf(rolePool(playerList.length));
+  const clses=shuf([...CLASSES]);
+  const deck=buildDeck();
+  const players=playerList.map((p,i)=>{
+    const cl=clses[i%CLASSES.length];
+    const ro=roles[i];
+    return{id:p.id,name:p.name,index:i,cls:cl.name,clsIco:cl.icon,hp:cl.hp,maxHp:cl.hp,atk:cl.atk,def:cl.def,roleId:ro.id,hand:deck.splice(0,4),equipment:[],statuses:[],dead:false,roleRevealed:ro.known};
+  });
+  return{players,deck,curIdx:0,round:1,log:['게임 시작!'],over:false};
+}
+
+// ── ROLE REVEAL ──
+function startRoleReveal(gs){
+  S.gameState=gs;
+  const me=gs.players.find(p=>p.id===S.myId);
+  if(!me)return;
+  const r=ROLES.find(r=>r.id===me.roleId);
+  document.getElementById('role-lbl').textContent=me.name+'님의 역할';
+  document.getElementById('role-inner').classList.remove('flipped');
+  document.getElementById('reveal-btn').classList.remove('show');
+  const f=document.getElementById('role-front');
+  f.className='rface rfront '+r.cls;
+  f.innerHTML=`<div class="r-ico">${r.icon}</div><div class="r-name">${r.name}</div><div class="r-desc">${r.desc}</div><div class="r-obj ${r.objCls}">${r.obj}</div><div style="margin-top:8px;font-size:.68rem;color:var(--text-dim)">${me.clsIco} ${me.cls}</div>`;
+  show('role-reveal');
+}
+function flipRole(){document.getElementById('role-inner').classList.toggle('flipped');setTimeout(()=>document.getElementById('reveal-btn').classList.add('show'),700);}
+function confirmRole(){show('game');subGame();}
+
+// ── GAME ──
+function subGame(){
+  if(S.unsub)S.unsub();
+  const ref=db.ref('rooms/'+S.roomCode+'/gameState');
+  ref.on('value',snap=>{
+    if(!snap.exists())return;
+    S.gameState=snap.val();
+    renderGame();
+    if(S.gameState.over)showVic();
+  });
+  S.unsub=()=>ref.off();
+}
+
+function myTurn(){return S.gameState&&S.gameState.players[S.gameState.curIdx]&&S.gameState.players[S.gameState.curIdx].id===S.myId;}
+
+function renderGame(){
+  const gs=S.gameState;
+  const cur=gs.players[gs.curIdx];
+  document.getElementById('g-round').textContent=gs.round;
+  document.getElementById('g-turn').textContent=cur?cur.name:'?';
+  document.getElementById('g-phase').textContent=myTurn()?'내 턴':cur.name+' 차례';
+  const mt=myTurn();
+  document.getElementById('draw-btn').disabled=!mt;
+  document.getElementById('end-btn').disabled=!mt;
+  renderPlayers();renderHand();renderTargets();renderLog();
+}
+
+function renderPlayers(){
+  const gs=S.gameState;const w=document.getElementById('g-players');w.innerHTML='';
+  gs.players.forEach((p,i)=>{
+    const act=i===gs.curIdx;const isMe=p.id===S.myId;
+    const pct=Math.max(0,(p.hp/p.maxHp)*100);
+    const hc=pct>60?'hp-hi':pct>30?'hp-md':'hp-lo';
+    // 역할은 roleRevealed된 경우만 표시 (자신 포함 - 역할간파/전사시에만)
+    const ro=p.roleRevealed?ROLES.find(r=>r.id===p.roleId):null;
+    const eqs=(p.equipment||[]).map(e=>`<span class="eq-tag">${e.ico}${e.nm}</span>`).join('');
+    const sts=(p.statuses||[]).map(s=>`<span class="st-tag">${s}</span>`).join('');
+    w.innerHTML+=`<div class="pc ${act?'active':''} ${isMe?'mine':''} ${p.dead?'dead':''}" id="gp${i}">
+      <div class="pn">${p.clsIco} ${p.name}${isMe?' (나)':''}</div>
+      <div class="pcls">${p.cls}${ro?' · '+ro.name:''}</div>
+      <div class="hpr"><span>HP</span><span>${p.hp}/${p.maxHp}</span></div>
+      <div class="hpb"><div class="hpf ${hc}" style="width:${pct}%"></div></div>
+      <div class="pst"><span>⚔${p.atk}</span><span>🛡${p.def}</span><span>🃏${(p.hand||[]).length}</span></div>
+      <div class="eq-row">${eqs}${sts}</div>
+      ${p.dead?'<div class="dead-x">💀</div>':''}
+    </div>`;
+  });
+}
+
+function renderHand(){
+  const w=document.getElementById('g-cards');w.innerHTML='';
+  const me=S.gameState.players.find(p=>p.id===S.myId);
+  if(!me||me.dead){w.innerHTML='<div style="color:var(--text-dim);font-style:italic;padding:14px">전사하여 행동 불가</div>';return;}
+  document.getElementById('g-hand-lbl').textContent='내 핸드 ('+me.hand.length+'장)';
+  const mt=myTurn();
+  me.hand.forEach((c,i)=>{
+    const sel=S.selCard&&S.selCard.idx===i;
+    const typeKr={attack:'공격',defense:'방어',magic:'마법',equipment:'장비',special:'특수'}[c.type]||c.type;
+    const typeColor={attack:'#e06060',defense:'var(--gold)',magic:'var(--blue-light)',equipment:'var(--green-light)',special:'#bb66ff'}[c.type]||'#fff';
+    w.innerHTML+=`<div class="gc ${c.type}${sel?' sel':''}${!mt?' dis':''}"
+      onclick="${mt?'selCard('+i+')':''}"
+      ontouchstart="startLongPress(event,${i})"
+      ontouchend="cancelLongPress()"
+      ontouchmove="cancelLongPress()"
+      oncontextmenu="showCardPopup(${i});return false;">
+      <div class="ci">${c.icon}</div><div class="cn">${c.name}</div>
+      <div class="ct" style="color:${typeColor}">${typeKr}</div>
+      <div class="cd">${c.desc}</div></div>`;
+  });
+}
+
+function renderTargets(){
+  const w=document.getElementById('g-tgts');w.innerHTML='';
+  if(!myTurn())return;
+  const gs=S.gameState;
+  const selfEffs=['heal','invn','eAtk','eDef','eDrw','ePsn'];
+  const showSelf=S.selCard&&selfEffs.includes(S.selCard.card.eff);
+  gs.players.forEach((p,i)=>{
+    if(p.dead)return;
+    const isMe=p.id===S.myId;
+    if(isMe&&!showSelf)return;
+    const sel=S.selTarget===i;
+    w.innerHTML+=`<button class="tgt-btn${sel?' tsel':''}" onclick="selTarget(${i})">${p.clsIco} ${p.name}${isMe?' (나)':''} ❤${p.hp}</button>`;
+  });
+}
+
+function renderLog(){
+  const p=document.getElementById('g-log');
+  const logs=S.gameState.log||[];
+  p.innerHTML=logs.slice(-8).reverse().map(l=>`<div class="log-e">${l}</div>`).join('');
+}
+
+function selCard(idx){
+  if(!myTurn())return;
+  const me=S.gameState.players.find(p=>p.id===S.myId);
+  const card=me.hand[idx];
+  S.selCard={idx,card};S.selTarget=null;
+  document.getElementById('g-sel').innerHTML=`<div class="si-ico">${card.icon}</div><div class="si-nm">${card.name}</div><div class="si-dc">${card.desc}</div>`;
+  document.getElementById('use-btn').disabled=false;
+  renderHand();renderTargets();
+}
+
+function selTarget(idx){
+  S.selTarget=idx;renderTargets();
+  const el=document.getElementById('gp'+idx);
+  if(el){el.classList.add('targeted');setTimeout(()=>el.classList.remove('targeted'),500);}
+}
+
+function useCard(){
+  if(!S.selCard||!myTurn())return;
+  if(document.getElementById('use-btn').disabled)return;
+  document.getElementById('use-btn').disabled=true;
+  const{idx,card}=S.selCard;
+  const needsTgt=['dmg1','dmg2','aoe','mag2','ltng','stl','peek','curs'].includes(card.eff);
+  if(needsTgt&&S.selTarget===null){
+    document.getElementById('use-btn').disabled=false;
+    showModal('🎯','대상 선택','대상을 선택하세요!');return;
+  }
+  showWait('카드 사용 중...');
+  const gs=JSON.parse(JSON.stringify(S.gameState));
+  const actor=gs.players.find(p=>p.id===S.myId);
+  const myIdx=gs.players.findIndex(p=>p.id===S.myId);
+  const tIdx=S.selTarget!==null?S.selTarget:myIdx;
+  const target=gs.players[tIdx]||gs.players[myIdx];
+  applyEff(gs,actor,card,target,tIdx);
+  actor.hand.splice(idx,1);
+  checkWin(gs);
+  S.selCard=null;S.selTarget=null;
+  document.getElementById('g-sel').innerHTML='<div class="si-dc" style="font-style:italic">카드 선택</div>';
+  db.ref('rooms/'+S.roomCode+'/gameState').set(gs)
+    .then(()=>hideWait())
+    .catch(e=>{hideWait();document.getElementById('use-btn').disabled=false;showModal('❌','오류',e.message);});
+}
+
+function applyEff(gs,actor,card,target,tIdx){
+  const e=card.eff;let log='';
+  // safe target (fallback to actor)
+  const tgt=target||actor;
+  if(e==='dmg1'||e==='dmg2'){if(!target){gs.log.push('대상 없음');return;}dealDmg(gs,target,actor.atk-1+(e==='dmg1'?1:2),actor,false);log=`<span class="la">${actor.name}</span>이 <span class="lc">${card.name}</span>으로 <span class="lt">${target.name}</span> 공격`;}
+  else if(e==='aoe'){gs.players.forEach(p=>{if(p.id!==actor.id&&!p.dead)dealDmg(gs,p,1,actor,false);});log=`<span class="la">${actor.name}</span> 광역 공격!`;}
+  else if(e==='mag2'){if(!target){gs.log.push('대상 없음');return;}dealDmg(gs,target,2,actor,true);log=`<span class="la">${actor.name}</span> 마법으로 <span class="lt">${target.name}</span> 공격`;}
+  else if(e==='ltng'){if(!target){gs.log.push('대상 없음');return;}dealDmg(gs,target,3,actor,true);target.statuses.push('⚡마비');log=`<span class="la">${actor.name}</span> 번개! <span class="lt">${target.name}</span> 마비`;}
+  else if(e==='heal'){actor.hp=Math.min(actor.maxHp,actor.hp+2);log=`<span class="la">${actor.name}</span> HP 2 회복`;}
+  else if(e==='invn'){actor.statuses.push('✨무적');log=`<span class="la">${actor.name}</span> 무적`;}
+  else if(e==='curs'){if(!target){gs.log.push('대상 없음');return;}target.statuses.push('💀저주');log=`<span class="la">${actor.name}</span>이 <span class="lt">${target.name}</span>에 저주`;}
+  else if(e==='stl'){if(!target){gs.log.push('대상 없음');return;}if(target.hand.length>0){const s=target.hand.splice(~~(Math.random()*target.hand.length),1)[0];actor.hand.push(s);log=`<span class="la">${actor.name}</span>이 <span class="lt">${target.name}</span>의 <span class="lc">${s.name}</span> 강탈!`;}else log='강탈 실패';}
+  else if(e==='peek'){if(!target){gs.log.push('대상 없음');return;}target.roleRevealed=true;const r=ROLES.find(r=>r.id===target.roleId);log=`<span class="la">${actor.name}</span>이 <span class="lt">${target.name}</span> 역할 간파 → ${r.name}`;if(actor.id===S.myId)showModal(r.icon,target.name+'의 역할',r.name+': '+r.desc);}
+  else if(e==='eAtk'||e==='eDef'||e==='eDrw'||e==='ePsn'){const t=tgt;t.equipment.push({ico:card.icon,nm:card.name,eff:e});if(e==='eAtk')t.atk++;if(e==='eDef')t.def++;log=`<span class="la">${actor.name}</span> ${card.name} 장착`;}
+  else if(e==='blk1'){actor.statuses.push('🛡방어');log=`<span class="la">${actor.name}</span> 방어`;}
+  else if(e==='blkA'){actor.statuses.push('🔒완전방어');log=`<span class="la">${actor.name}</span> 완전방어`;}
+  gs.log.push(log);
+}
+
+function dealDmg(gs,target,raw,actor,isMagic){
+  if(!target){gs.log.push('대상 오류');return;}
+  if(target.statuses.includes('✨무적')){gs.log.push(target.name+' 무적');return;}
+  let dmg=raw;
+  const fb=target.statuses.indexOf('🔒완전방어');
+  if(fb!==-1){target.statuses.splice(fb,1);gs.log.push(target.name+' 완전방어 발동');return;}
+  const b=target.statuses.indexOf('🛡방어');
+  if(b!==-1&&!isMagic){dmg=Math.max(0,dmg-1);target.statuses.splice(b,1);}
+  if(!isMagic)dmg=Math.max(0,dmg-target.def);
+  if(actor&&actor.equipment&&actor.equipment.some(q=>q.eff==='ePsn')&&dmg>0)target.statuses.push('☠독');
+  target.hp-=dmg;
+  if(target.hp<=0){target.hp=0;target.dead=true;target.roleRevealed=true;gs.log.push('💀 '+target.name+' 전사! ('+ROLES.find(r=>r.id===target.roleId).name+')');}
+}
+
+function checkWin(gs){
+  const king=gs.players.find(p=>p.roleId==='king');
+  const shadows=gs.players.filter(p=>p.roleId==='shadow');
+  const alive=gs.players.filter(p=>!p.dead);
+  if(king&&king.dead){gs.over=true;gs.winMsg='어둠의 승리!';gs.winSub='섀도우가 왕을 쓰러뜨렸습니다!';gs.winners=gs.players.filter(p=>p.roleId==='shadow').map(p=>p.id);return;}
+  if(shadows.every(p=>p.dead)){gs.over=true;gs.winMsg='빛의 승리!';gs.winSub='모든 섀도우 제거!';gs.winners=gs.players.filter(p=>['king','hero'].includes(p.roleId)).map(p=>p.id);return;}
+  if(alive.length===1){const l=alive[0];gs.over=true;gs.winMsg=l.roleId==='trickster'?'트릭스터 승리!':'최후의 생존자!';gs.winSub='마지막 생존자!';gs.winners=[l.id];}
+}
+
+function drawCard(){
+  if(!myTurn())return;
+  if(document.getElementById('draw-btn').disabled)return;
+  document.getElementById('draw-btn').disabled=true;
+  const gs=JSON.parse(JSON.stringify(S.gameState));
+  const me=gs.players.find(p=>p.id===S.myId);
+  if(!me){document.getElementById('draw-btn').disabled=false;return;}
+  if(gs.deck.length===0){gs.deck=buildDeck();}
+  me.hand.push(gs.deck.pop());
+  gs.log.push('<span class="la">'+me.name+'</span> 카드 뽑기');
+  db.ref('rooms/'+S.roomCode+'/gameState').set(gs)
+    .then(()=>{})
+    .catch(e=>{document.getElementById('draw-btn').disabled=false;showModal('❌','오류',e.message);});
+}
+
+function endTurn(){
+  if(!myTurn())return;
+  if(document.getElementById('end-btn').disabled)return;
+  document.getElementById('end-btn').disabled=true;
+  document.getElementById('draw-btn').disabled=true;
+  document.getElementById('use-btn').disabled=true;
+  showWait('턴 종료 중...');
+  const gs=JSON.parse(JSON.stringify(S.gameState));
+  const cur=gs.players[gs.curIdx];
+  if(cur.statuses.includes('☠독')&&!cur.dead){cur.hp=Math.max(0,cur.hp-1);gs.log.push('☠ '+cur.name+' 독 1피해');if(cur.hp<=0){cur.dead=true;cur.roleRevealed=true;gs.log.push('💀 '+cur.name+' 독 전사');}}
+  cur.statuses=cur.statuses.filter(s=>s!=='✨무적'&&s!=='⚡마비');
+  if(cur.equipment.some(q=>q.eff==='eDrw')){if(gs.deck.length===0)gs.deck=buildDeck();cur.hand.push(gs.deck.pop());}
+  checkWin(gs);
+  if(!gs.over){
+    let next=(gs.curIdx+1)%gs.players.length;let lp=0;
+    while(gs.players[next].dead&&lp<gs.players.length){next=(next+1)%gs.players.length;lp++;}
+    if(next<=gs.curIdx)gs.round++;
+    gs.curIdx=next;
+    if(gs.deck.length===0)gs.deck=buildDeck();
+    gs.players[next].hand.push(gs.deck.pop());
+    gs.log.push('── '+gs.players[next].name+'의 턴 (R'+gs.round+')');
+  }
+  S.selCard=null;S.selTarget=null;
+  document.getElementById('g-sel').innerHTML='<div class="si-dc" style="font-style:italic">카드 선택</div>';
+  db.ref('rooms/'+S.roomCode+'/gameState').set(gs)
+    .then(()=>hideWait())
+    .catch(e=>{
+      hideWait();
+      // 실패시 버튼 복구
+      if(myTurn()){
+        document.getElementById('end-btn').disabled=false;
+        document.getElementById('draw-btn').disabled=false;
+      }
+      showModal('❌','저장 오류',e.message);
+    });
+}
+
+function showVic(){
+  const gs=S.gameState;
+  document.getElementById('vic-t').textContent='⚔ '+(gs.winMsg||'전투 종료');
+  document.getElementById('vic-s').textContent=gs.winSub||'';
+  const w=document.getElementById('vic-w');w.innerHTML='';
+  (gs.winners||[]).forEach(wid=>{
+    const p=gs.players.find(p=>p.id===wid);if(!p)return;
+    const r=ROLES.find(r=>r.id===p.roleId);
+    w.innerHTML+=`<div class="wi"><div class="w-ico">${r.icon}</div><div><div class="wn">${p.clsIco} ${p.name}</div><div class="wr">${r.name} · ${p.cls}</div></div></div>`;
+  });
+  show('victory');
+}
+
+function backLobby(){
+  if(S.unsub)S.unsub();
+  S.selCard=null;S.selTarget=null;
+  show('lobby');
+}
+
+// ── CARD POPUP (길게 누르기) ──
+let longPressTimer=null;
+function startLongPress(e,idx){
+  longPressTimer=setTimeout(()=>showCardPopup(idx),500);
+}
+function cancelLongPress(){
+  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}
+}
+function showCardPopup(idx){
+  cancelLongPress();
+  const me=S.gameState&&S.gameState.players.find(p=>p.id===S.myId);
+  if(!me||!me.hand[idx])return;
+  const c=me.hand[idx];
+  const typeKr={attack:'⚔ 공격',defense:'🛡 방어',magic:'✨ 마법',equipment:'🔧 장비',special:'🎴 특수'}[c.type]||c.type;
+  const typeColor={attack:'#e06060',defense:'var(--gold)',magic:'var(--blue-light)',equipment:'var(--green-light)',special:'#bb66ff'}[c.type]||'#fff';
+  const fullDesc={
+    dmg1:'선택한 대상에게 공격력 기반 1피해를 줍니다.',
+    dmg2:'선택한 대상에게 공격력 기반 2피해를 줍니다.',
+    aoe:'모든 적에게 1피해를 줍니다. 대상 선택 불필요.',
+    blk1:'다음에 받는 물리 피해를 1 줄입니다.',
+    blkA:'다음에 받는 공격을 완전히 무효화합니다.',
+    mag2:'선택한 대상에게 방어력 무시 2마법피해를 줍니다.',
+    ltng:'3피해 + 다음 턴 행동 불가(마비) 상태를 부여합니다.',
+    heal:'자신의 HP를 2 회복합니다. (최대 HP 초과 불가)',
+    invn:'이번 라운드 동안 모든 피해를 무효화합니다.',
+    curs:'대상의 다음 공격력을 1 감소시킵니다.',
+    eAtk:'자신에게 장착 — 공격력이 영구적으로 +1 증가합니다.',
+    eDef:'자신에게 장착 — 방어력이 영구적으로 +1 증가합니다.',
+    eDrw:'자신에게 장착 — 매 턴 시작시 카드를 1장 추가로 뽑습니다.',
+    ePsn:'자신에게 장착 — 공격 성공시 대상에게 독을 부여합니다.',
+    stl:'대상의 핸드에서 카드 1장을 무작위로 빼앗습니다.',
+    peek:'대상의 역할 카드를 몰래 확인합니다.',
+  }[c.eff]||c.desc;
+  document.getElementById('cp-ico').textContent=c.icon;
+  document.getElementById('cp-name').textContent=c.name;
+  document.getElementById('cp-type').textContent=typeKr;
+  document.getElementById('cp-type').style.color=typeColor;
+  document.getElementById('cp-desc').textContent=fullDesc;
+  document.getElementById('card-popup').classList.add('on');
+}
+</script>
+</body>
+</html>
